@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "buildCommand": "",
+  "outputDirectory": "public",
+  "functions": {
+    "api/core.js": {
+      "memory": 256,
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    { "source": "/sys-core",           "destination": "/api/core.js"         },
+    { "source": "/style.css",          "destination": "/public/style.css"    },
+    { "source": "/app.js",             "destination": "/public/app.js"       },
+    { "source": "/dashboard",          "destination": "/public/dashboard.html"},
+    { "source": "/",                   "destination": "/public/index.html"   },
+    { "source": "/:username",          "destination": "/public/base.html"    }
+  ],
+  "headers": [
+    {
+      "source": "/sys-core",
+      "headers": [
+        { "key": "X-Content-Type-Options",   "value": "nosniff"         },
+        { "key": "X-Frame-Options",          "value": "DENY"            },
+        { "key": "Referrer-Policy",          "value": "no-referrer"     },
+        { "key": "Cache-Control",            "value": "no-store"        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options",   "value": "nosniff"         },
+        { "key": "X-Frame-Options",          "value": "SAMEORIGIN"      },
+        { "key": "Referrer-Policy",          "value": "strict-origin"   }
+      ]
+    }
+  ]
+}
