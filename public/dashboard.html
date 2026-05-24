@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+  <title>Dashboard · Codersmail</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app-wrapper">
+  <div class="app-header" id="appHeader"></div>
+  <div id="dynamicView" class="main-view"></div>
+  <div class="copyright">© Codersmail · @coders.dev</div>
+</div>
+
+<!-- Message Modal -->
+<div class="modal-overlay" id="messageModal">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <h3><i class="far fa-envelope-open"></i> Pesan</h3>
+      <span style="font-size:24px;cursor:pointer;" id="closeModalBtn">&times;</span>
+    </div>
+    <div id="modalBody" style="margin:16px 0;"></div>
+    <div class="flex-row" style="margin-top:16px;">
+      <button class="btn btn-outline" id="shareMessageBtn"><i class="fas fa-share-alt"></i> Bagikan</button>
+      <button class="btn btn-dark" id="modalCloseBtn">Tutup</button>
+    </div>
+    <div style="text-align:right;margin-top:10px;">
+      <span style="font-size:.78rem;color:#ccc;cursor:pointer;" id="deleteMsgBtn"><i class="fas fa-trash"></i> Hapus</span>
+    </div>
+    <div class="watermark-share">© Codersmail</div>
+  </div>
+</div>
+
+<!-- Share Modal -->
+<div class="modal-overlay" id="shareModal">
+  <div class="modal-card" style="max-width:400px;">
+    <h3><i class="fas fa-share-alt"></i> Bagikan sebagai Gambar</h3>
+    <div style="margin:16px 0;text-align:center;">
+      <canvas id="shareCanvas" width="380" height="520"></canvas>
+    </div>
+    <div class="flex-row">
+      <button class="btn btn-outline" id="downloadImageBtn"><i class="fas fa-download"></i> Simpan</button>
+      <button class="btn btn-outline" id="shareImageBtn"><i class="fas fa-share-alt"></i> Share</button>
+    </div>
+    <button class="btn btn-dark" id="closeShareModal" style="margin-top:12px;">Tutup</button>
+    <div class="watermark-share">© Codersmail</div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="deleteConfirmModal">
+  <div class="modal-card">
+    <h3 style="color:#ff3b30;"><i class="fas fa-exclamation-triangle"></i> Hapus Akun</h3>
+    <p style="margin:20px 0;">Yakin hapus permanen? Semua pesan akan hilang.</p>
+    <div class="flex-row">
+      <button class="btn btn-outline" id="cancelDeleteBtn">Batal</button>
+      <button class="btn btn-dark" style="background:#ff3b30;" id="confirmDeleteBtn">Hapus</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Photo Modal -->
+<div class="modal-overlay" id="uploadPhotoModal">
+  <div class="modal-card">
+    <h3><i class="fas fa-camera"></i> Upload Foto Profil</h3>
+    <div class="upload-area" id="uploadTrigger">
+      <i class="fas fa-cloud-upload-alt fa-2x" style="color:#aaa;"></i>
+      <p style="margin-top:8px;">Klik atau tarik foto</p>
+      <p style="font-size:.75rem;color:#aaa;margin-top:4px;">JPG, PNG, GIF · Maks 5MB</p>
+    </div>
+    <input type="file" id="profileUploadInput" accept="image/*">
+    <div id="uploadPreview" style="text-align:center;margin:12px 0;display:none;">
+      <img id="uploadPreviewImg" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #f0f0f0;">
+    </div>
+    <div class="flex-row" style="margin-top:16px;">
+      <button class="btn btn-outline" id="cancelUploadBtn">Batal</button>
+      <button class="btn btn-dark" id="saveUploadBtn">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal-overlay" id="changePwModal">
+  <div class="modal-card">
+    <h3><i class="fas fa-lock"></i> Ganti Password</h3>
+    <div style="margin:16px 0;">
+      <input class="input-style" id="oldPw" type="password" placeholder="Password lama" style="margin-bottom:12px;">
+      <input class="input-style" id="newPw" type="password" placeholder="Password baru (min 6 karakter)">
+    </div>
+    <div class="flex-row">
+      <button class="btn btn-outline" id="cancelPwBtn">Batal</button>
+      <button class="btn btn-dark" id="savePwBtn">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+// ── Auth guard ──────────────────────────────────────────────
+const auth = getAuth();
+if (!auth || !auth.username) { window.location.href = '/'; throw 0; }
+const user = auth.username;
+
+let userData  = { pic: '', email: '', urlngl: '', messages: {} };
+let currentView = 'main';
+let openMsg     = null;
+let tempImg     = null;
+
+// ── Load data ───────────────────────────────────────────────
+async function loadData() {
+  const res = await apiCall('GET_DATA', { username: user });
+  if (res.e) { clearAuth(); window.location.href = '/'; return; }
+  userData = res;
+  render();
+}
+
+// ── Render router ───────────────────────────────────────────
+function render() {
+  if (currentView === 'main') {
+    renderHeader();
+    document.getElementById('dynamicView').innerHTML =
+      `<div class="pages-container" id="pagesContainer">
+         <div class="page" id="homePage"></div>
+         <div class="page" id="inboxPage"></div>
+       </div>`;
+    renderHome();
+    renderInbox();
+  } else {
+    renderSettings();
+  }
+  document.getElementById('dynamicView').classList.add('view-transition');
+  setTimeout(() => document.getElementById('dynamicView').classList.remove('view-transition'), 250);
+}
+
+// ── Header ──────────────────────────────────────────────────
+function renderHeader() {
+  const msgs   = Object.values(userData.messages || {});
+  const unread = msgs.filter(m => !m.read).length;
+  document.getElementById('appHeader').innerHTML = `
+    <div class="header-top">
+      <h1>
+        <svg width="24" height="24" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="#1a1a1a"/><path d="M12 18h40v5H12zM12 28h30v5H12zM12 38h24v5H12z" fill="white" opacity=".9"/></svg>
+        Codersmail
+      </h1>
+      <i class="fas fa-cog settings-icon" id="settingsHeaderBtn"></i>
+    </div>
+    <div class="domain-badge">
+      <i class="fas fa-envelope"></i>
+      <span class="email-chip">${userData.email || user + '@coders.dev'}</span>
+    </div>
+    <div class="nav-tabs" id="mainNavTabs">
+      <div class="nav-tab active" data-page="home"><i class="fas fa-home"></i> Home</div>
+      <div class="nav-tab" data-page="inbox">
+        <i class="fas fa-inbox"></i> Inbox
+        ${unread > 0 ? `<span class="inbox-badge">${unread}</span>` : ''}
+      </div>
+    </div>
+  `;
+  document.getElementById('settingsHeaderBtn').onclick = () => { currentView = 'settings'; render(); };
+  document.querySelectorAll('.nav-tab').forEach(t => t.addEventListener('click', function() {
+    document.querySelectorAll('.nav-tab').forEach(tb => tb.classList.remove('active'));
+    this.classList.add('active');
+    const c = document.getElementById('pagesContainer');
+    if (c) c.scrollTo({ left: this.dataset.page === 'home' ? 0 : c.clientWidth, behavior: 'smooth' });
+  }));
+}
+
+// ── Home tab ────────────────────────────────────────────────
+function renderHome() {
+  const link = `${location.origin}/${user}`;
+  document.getElementById('homePage').innerHTML = `
+    <div class="profile-section">
+      <img src="${userData.pic || 'https://api.dicebear.com/7.x/initials/svg?seed=' + user}" class="profile-pic" id="profilePicEl">
+      <div class="profile-name"><i class="far fa-user-circle" style="font-size:.9rem;"></i> @${user}</div>
+      <div class="profile-email">${userData.email || user + '@coders.dev'}</div>
+    </div>
+    <div class="section-card">
+      <h3 style="margin-bottom:4px;"><i class="fas fa-share-alt"></i> Link Anonim</h3>
+      <p style="font-size:.8rem;color:#8e8e8e;margin-bottom:0;">Bagikan link ini agar orang bisa kirim pesan anonim ke kamu</p>
+      <div class="link-box">
+        <span id="linkDisplayText">${link}</span>
+        <button class="copy-btn" id="copyLinkHome"><i class="far fa-copy"></i> Salin</button>
+      </div>
+    </div>
+    <button class="btn btn-outline" id="logoutBtn" style="color:#ff3b30;border-color:#ff3b30;font-weight:600;">
+      <i class="fas fa-sign-out-alt"></i> Logout
+    </button>
+  `;
+  document.getElementById('copyLinkHome').onclick = function() {
+    copyText(link, this);
+  };
+  document.getElementById('logoutBtn').onclick = () => {
+    clearAuth(); window.location.href = '/';
+  };
+}
+
+// ── Inbox tab ────────────────────────────────────────────────
+function renderInbox() {
+  const msgs = Object.values(userData.messages || {}).sort((a, b) => b.id - a.id);
+  let html = `<h3 style="margin-bottom:14px;"><i class="fas fa-inbox"></i> Kotak Masuk (${msgs.length})</h3>`;
+  if (msgs.length === 0) {
+    html += `<div style="text-align:center;padding:40px 0;color:#ccc;">
+      <i class="fas fa-inbox fa-3x" style="margin-bottom:12px;display:block;"></i>
+      <p>Belum ada pesan</p>
+    </div>`;
+  }
+  msgs.forEach(m => {
+    html += `<div class="message-item ${m.read ? 'read' : 'unread'}" data-id="${m.id}">
+      <div class="msg-sender">
+        <span><i class="fas fa-user-secret"></i> ${escHtml(m.sender || 'Anonim')}</span>
+        <span style="font-size:.75rem;color:#aaa;">${m.timestamp}</span>
+      </div>
+      <div style="font-size:.9rem;margin-top:4px;">
+        ${m.read ? escHtml(m.text).substring(0, 80) + (m.text.length > 80 ? '…' : '') : '<span class="blur-content">🔒 Pesan tersembunyi — klik untuk buka</span>'}
+      </div>
+      ${m.media ? `<div class="media-blur" style="margin-top:8px;"><img src="${m.media}" alt="media"></div>` : ''}
+    </div>`;
+  });
+  document.getElementById('inboxPage').innerHTML = html;
+  document.querySelectorAll('.message-item').forEach(el =>
+    el.addEventListener('click', () => openMessage(el.dataset.id))
+  );
+}
+
+// ── Open message modal ───────────────────────────────────────
+async function openMessage(id) {
+  const msg = userData.messages[id];
+  if (!msg) return;
+  openMsg = msg;
+  if (!msg.read) {
+    msg.read = true;
+    apiCall('READ_MSG', { username: user, id });
+    renderHeader();
+    renderInbox();
+  }
+  document.getElementById('modalBody').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+      <div style="width:36px;height:36px;background:#f0f0f0;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+        <i class="fas fa-user-secret"></i>
+      </div>
+      <div>
+        <div style="font-weight:650;">${escHtml(msg.sender || 'Anonim')}</div>
+        <div style="font-size:.75rem;color:#aaa;">${msg.timestamp}</div>
+      </div>
+    </div>
+    <p style="margin:0;line-height:1.6;">${escHtml(msg.text)}</p>
+    ${msg.media ? `<img src="${msg.media}" style="max-width:100%;border-radius:18px;margin-top:12px;">` : ''}
+  `;
+  document.getElementById('messageModal').classList.add('show');
+  document.getElementById('deleteMsgBtn').onclick = async () => {
+    await apiCall('DELETE_MSG', { username: user, id });
+    delete userData.messages[id];
+    document.getElementById('messageModal').classList.remove('show');
+    render();
+    showToast('Pesan dihapus', 'success');
+  };
+}
+
+// ── Settings ─────────────────────────────────────────────────
+function renderSettings() {
+  document.getElementById('appHeader').innerHTML = '';
+  document.getElementById('dynamicView').innerHTML = `
+    <div class="settings-full" style="padding:8px 0;">
+      <div style="display:flex;align-items:center;padding:18px 16px;border-bottom:1px solid #eee;">
+        <i class="fas fa-arrow-left" id="backFromSettings" style="font-size:1.4rem;cursor:pointer;"></i>
+        <h2 style="margin-left:16px;font-size:1.2rem;">Pengaturan</h2>
+      </div>
+      <div style="padding:20px 16px;text-align:center;border-bottom:1px solid #f0f0f0;">
+        <img src="${userData.pic || 'https://api.dicebear.com/7.x/initials/svg?seed=' + user}" 
+             style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #f0f0f0;margin-bottom:8px;">
+        <div style="font-weight:650;">@${user}</div>
+        <div style="font-size:.82rem;color:#8e8e8e;">${userData.email || user + '@coders.dev'}</div>
+      </div>
+      <div class="settings-item" id="changePhotoSetting">
+        <span><i class="fas fa-camera" style="margin-right:10px;"></i> Ganti Foto Profil</span>
+        <i class="fas fa-chevron-right" style="color:#ccc;"></i>
+      </div>
+      <div class="settings-item" id="changePwSetting">
+        <span><i class="fas fa-lock" style="margin-right:10px;"></i> Ganti Password</span>
+        <i class="fas fa-chevron-right" style="color:#ccc;"></i>
+      </div>
+      <div class="settings-item">
+        <span><i class="fas fa-envelope" style="margin-right:10px;"></i> Email Codersmail</span>
+        <span style="font-size:.82rem;color:#8e8e8e;">${userData.email || user + '@coders.dev'}</span>
+      </div>
+      <div class="settings-item">
+        <span><i class="fas fa-user" style="margin-right:10px;"></i> Username</span>
+        <span style="font-size:.82rem;color:#8e8e8e;">@${user}</span>
+      </div>
+      <div class="settings-item delete-account" id="deleteAccountBtn">
+        <span><i class="fas fa-trash-alt" style="margin-right:10px;"></i> Hapus Akun</span>
+      </div>
+    </div>
+  `;
+  document.getElementById('backFromSettings').onclick   = () => { currentView = 'main'; render(); };
+  document.getElementById('deleteAccountBtn').onclick   = () => document.getElementById('deleteConfirmModal').classList.add('show');
+  document.getElementById('changePhotoSetting').onclick = () => { tempImg = null; document.getElementById('uploadPhotoModal').classList.add('show'); };
+  document.getElementById('changePwSetting').onclick    = () => document.getElementById('changePwModal').classList.add('show');
+}
+
+// ── Upload photo ──────────────────────────────────────────────
+document.getElementById('uploadTrigger').onclick = () => document.getElementById('profileUploadInput').click();
+document.getElementById('profileUploadInput').onchange = e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) return showToast('Ukuran file maks 5MB', 'error');
+  const r = new FileReader();
+  r.onload = ev => {
+    tempImg = ev.target.result;
+    document.getElementById('uploadPreviewImg').src = tempImg;
+    document.getElementById('uploadPreview').style.display = 'block';
+  };
+  r.readAsDataURL(file);
+};
+
+document.getElementById('saveUploadBtn').onclick = async () => {
+  if (!tempImg) return showToast('Pilih foto dulu', 'error');
+  const btn = document.getElementById('saveUploadBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span>';
+  const r = await apiCall('UPDATE_PIC', { username: user, pic: tempImg });
+  btn.disabled = false; btn.innerHTML = 'Simpan';
+  if (r.e) return showToast(r.e, 'error');
+  // Use permanent Telegram URL returned by backend
+  userData.pic = r.url || tempImg;
+  document.getElementById('uploadPhotoModal').classList.remove('show');
+  document.getElementById('uploadPreview').style.display = 'none';
+  showToast('Foto profil diperbarui!', 'success');
+  render();
+};
+document.getElementById('cancelUploadBtn').onclick = () => {
+  document.getElementById('uploadPhotoModal').classList.remove('show');
+  document.getElementById('uploadPreview').style.display = 'none';
+  tempImg = null;
+};
+
+// ── Change password ───────────────────────────────────────────
+document.getElementById('savePwBtn').onclick = async () => {
+  const oldPw = document.getElementById('oldPw').value;
+  const newPw = document.getElementById('newPw').value;
+  if (!oldPw || !newPw) return showToast('Isi kedua kolom', 'error');
+  const r = await apiCall('CHANGE_PASSWORD', { username: user, oldPw, newPw });
+  if (r.e) return showToast(r.e, 'error');
+  showToast('Password berhasil diubah!', 'success');
+  document.getElementById('changePwModal').classList.remove('show');
+  document.getElementById('oldPw').value = '';
+  document.getElementById('newPw').value = '';
+};
+document.getElementById('cancelPwBtn').onclick = () => document.getElementById('changePwModal').classList.remove('show');
+
+// ── Delete account ────────────────────────────────────────────
+document.getElementById('confirmDeleteBtn').onclick = async () => {
+  const r = await apiCall('DELETE_ACC', { username: user });
+  if (r.e) return showToast(r.e, 'error');
+  clearAuth(); window.location.href = '/';
+};
+document.getElementById('cancelDeleteBtn').onclick = () => document.getElementById('deleteConfirmModal').classList.remove('show');
+
+// ── Message modal close ───────────────────────────────────────
+document.getElementById('closeModalBtn').onclick = () => document.getElementById('messageModal').classList.remove('show');
+document.getElementById('modalCloseBtn').onclick  = () => document.getElementById('messageModal').classList.remove('show');
+
+// ── Share as image ────────────────────────────────────────────
+document.getElementById('shareMessageBtn').onclick = () => {
+  if (!openMsg) return;
+  const msg = openMsg;
+  document.getElementById('messageModal').classList.remove('show');
+  const canvas = document.getElementById('shareCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 380; canvas.height = 520;
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 380, 520);
+  ctx.strokeStyle = '#eaeaea'; ctx.lineWidth = 1.5; ctx.strokeRect(2, 2, 376, 516);
+  if (!msg.read) { ctx.fillStyle = '#1a1a1a'; ctx.fillRect(2, 2, 5, 516); }
+  ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 14px system-ui,sans-serif';
+  ctx.fillText(`${msg.sender || 'Anonim'}`, 20, 36);
+  ctx.font = '11px system-ui'; ctx.fillStyle = '#999';
+  ctx.fillText(msg.timestamp, 20, 56);
+  ctx.fillStyle = '#2c2c2c'; ctx.font = '14px system-ui,sans-serif';
+  const words = msg.text.split(' '); let line = '', yPos = 84;
+  for (const word of words) {
+    const test = line + word + ' ';
+    if (ctx.measureText(test).width > 340) { ctx.fillText(line, 20, yPos); line = word + ' '; yPos += 22; }
+    else line = test;
+  }
+  ctx.fillText(line, 20, yPos); yPos += 30;
+  ctx.font = '11px system-ui'; ctx.fillStyle = '#aaa';
+  ctx.fillText('© Codersmail · @coders.dev', 20, yPos + 20);
+  document.getElementById('shareModal').classList.add('show');
+};
+
+document.getElementById('downloadImageBtn').onclick = () => {
+  const a = document.createElement('a'); a.download = 'codersmail-pesan.png';
+  a.href = document.getElementById('shareCanvas').toDataURL(); a.click();
+};
+document.getElementById('shareImageBtn').onclick = async () => {
+  const blob = await (await fetch(document.getElementById('shareCanvas').toDataURL())).blob();
+  const file = new File([blob], 'codersmail.png', { type: 'image/png' });
+  if (navigator.share) navigator.share({ files: [file] });
+};
+document.getElementById('closeShareModal').onclick = () => document.getElementById('shareModal').classList.remove('show');
+
+// ── HTML escape util ──────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadData();
+</script>
+</body>
+</html>
