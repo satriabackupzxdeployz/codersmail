@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+  <title>Kirim Pesan Anonim · Codersmail</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="send-outer">
+
+  <!-- Loading state -->
+  <div id="loadingState" class="send-container" style="padding:48px;text-align:center;">
+    <div class="loading-spinner" style="border-color:rgba(0,0,0,.1);border-top-color:#1a1a1a;margin:0 auto 16px;"></div>
+    <p style="color:#aaa;font-size:.9rem;">Memuat profil...</p>
+  </div>
+
+  <!-- 404 state (hidden by default) -->
+  <div id="notFoundState" class="notfound-container" style="display:none;">
+    <div style="font-size:3rem;margin-bottom:16px;">🔍</div>
+    <h2>Pengguna Tidak Ditemukan</h2>
+    <p>Username <strong id="nfUsername"></strong> tidak terdaftar di Codersmail.</p>
+    <a href="/" style="display:inline-block;margin-top:16px;padding:12px 28px;background:#1a1a1a;color:white;border-radius:40px;text-decoration:none;font-weight:600;">
+      Buat Akun
+    </a>
+  </div>
+
+  <!-- Send form (hidden until user verified) -->
+  <div id="sendContainer" class="send-container" style="display:none;">
+    <div class="recipient-header">
+      <img class="recipient-avatar" id="recipientAvatar" src="https://api.dicebear.com/7.x/initials/svg?seed=?" alt="Profile">
+      <div class="recipient-name" id="recipientDisplayName">
+        <i class="fas fa-user-circle" style="font-size:.9rem;"></i>
+        <span id="recipientNameText">...</span>
+      </div>
+      <div class="recipient-email" id="recipientEmailEl"></div>
+      <div class="recipient-username">
+        <i class="fas fa-at" style="color:#aaa;"></i>
+        <span id="recipientUsername">...</span>
+      </div>
+    </div>
+
+    <div class="send-form">
+      <!-- Sender name -->
+      <div class="form-group">
+        <label><i class="fas fa-user-secret"></i> Nama Kamu (opsional)</label>
+        <div class="input-wrapper">
+          <input type="text" id="senderName" placeholder="Contoh: Teman Rahasia" maxlength="30" value="Anonim">
+        </div>
+        <div class="char-counter"><span id="nameCount">6</span>/30</div>
+      </div>
+
+      <!-- Photo upload -->
+      <div class="form-group">
+        <label><i class="fas fa-image"></i> Upload Foto (opsional)</label>
+        <div class="upload-area" id="uploadArea">
+          <i class="fas fa-cloud-upload-alt" style="font-size:1.5rem;color:#aaa;display:block;margin-bottom:6px;"></i>
+          <p style="font-size:.9rem;">Klik untuk pilih foto</p>
+          <p style="font-size:.75rem;color:#aaa;margin-top:4px;">Format: JPG, PNG, GIF (Maks 5MB)</p>
+        </div>
+        <input type="file" id="photoInput" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
+        <div class="photo-preview" id="photoPreview"></div>
+      </div>
+
+      <!-- Message -->
+      <div class="form-group">
+        <label><i class="fas fa-pen"></i> Pesan Kamu</label>
+        <div class="input-wrapper">
+          <textarea id="messageText" placeholder="Tulis pesan rahasia kamu di sini..." maxlength="500"></textarea>
+        </div>
+        <div class="char-counter"><span id="messageCount">0</span>/500</div>
+      </div>
+
+      <div class="anon-info">
+        <i class="fas fa-mask"></i>
+        <span>Pesan ini dikirim secara anonim. Identitas kamu dirahasiakan.</span>
+      </div>
+
+      <button class="btn-send" id="sendButton">
+        <i class="fas fa-paper-plane"></i> Kirim Pesan Anonim
+      </button>
+    </div>
+
+    <div class="send-footer">
+      Powered by <a href="/">Codersmail</a> · @coders.dev
+    </div>
+  </div>
+</div>
+
+<!-- Success Modal -->
+<div class="success-modal" id="successModal">
+  <div class="success-card">
+    <div class="success-icon"><i class="fas fa-check"></i></div>
+    <h3 style="margin-bottom:8px;">Terkirim!</h3>
+    <p style="color:#666;margin-bottom:20px;">Pesan anonim kamu berhasil dikirim ke <strong id="successRecipient"></strong>.</p>
+    <button class="btn-close" id="closeSuccessBtn">Selesai</button>
+    <div style="margin-top:12px;font-size:.82rem;color:#aaa;">
+      Ingin punya link sendiri? <a href="/" style="color:#1a1a1a;font-weight:600;">Daftar gratis</a>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+(async () => {
+  // Extract username from URL path — never trust random endpoints
+  const rawPath    = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+  const targetUser = rawPath.split('/')[0];  // only first segment
+
+  // Validate: must match username pattern
+  if (!targetUser || !/^[a-zA-Z0-9_]{3,20}$/.test(targetUser)) {
+    showNotFound(targetUser || '?');
+    return;
+  }
+
+  // Verify user exists on backend
+  const profile = await apiCall('GET_PROFILE', { username: targetUser });
+  if (profile.e || !profile.pic) {
+    showNotFound(targetUser);
+    return;
+  }
+
+  // User verified — show send form
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('sendContainer').style.display = 'block';
+  document.title = `Kirim ke @${targetUser} · Codersmail`;
+
+  document.getElementById('recipientAvatar').src          = profile.pic;
+  document.getElementById('recipientNameText').textContent = profile.displayName || targetUser;
+  document.getElementById('recipientUsername').textContent = targetUser;
+  document.getElementById('recipientEmailEl').textContent  = profile.email || targetUser + '@coders.dev';
+  document.getElementById('successRecipient').textContent  = '@' + targetUser;
+
+  // ── Char counters ──────────────────────────────────────
+  const senderInput  = document.getElementById('senderName');
+  const messageInput = document.getElementById('messageText');
+  senderInput.addEventListener('input',  () => document.getElementById('nameCount').textContent    = senderInput.value.length);
+  messageInput.addEventListener('input', () => document.getElementById('messageCount').textContent = messageInput.value.length);
+
+  // ── Photo upload ────────────────────────────────────────
+  let selectedPhoto = null;
+  document.getElementById('uploadArea').onclick = () => document.getElementById('photoInput').click();
+  document.getElementById('photoInput').onchange = e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    if (f.size > 5 * 1024 * 1024) { showToast('Ukuran file maks 5MB', 'error'); return; }
+    const r = new FileReader();
+    r.onload = ev => {
+      selectedPhoto = ev.target.result;
+      document.getElementById('photoPreview').innerHTML = `
+        <div class="preview-item">
+          <img src="${selectedPhoto}">
+          <span class="remove-photo" id="removePhoto"><i class="fas fa-times"></i></span>
+        </div>`;
+      document.getElementById('removePhoto').onclick = () => {
+        selectedPhoto = null;
+        document.getElementById('photoPreview').innerHTML = '';
+      };
+    };
+    r.readAsDataURL(f);
+  };
+
+  // ── Send ────────────────────────────────────────────────
+  document.getElementById('sendButton').onclick = async () => {
+    const msg    = messageInput.value.trim();
+    const sender = senderInput.value.trim() || 'Anonim';
+    if (!msg) { showToast('Tulis pesan kamu dulu', 'error'); return; }
+
+    const btn = document.getElementById('sendButton');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading-spinner"></span> Mengirim...';
+
+    const r = await apiCall('SEND_MSG', { to: targetUser, sender, text: msg, media: selectedPhoto });
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Kirim Pesan Anonim';
+
+    if (r.e) { showToast(r.e, 'error'); return; }
+
+    document.getElementById('successModal').classList.add('show');
+    messageInput.value = '';
+    selectedPhoto = null;
+    document.getElementById('photoPreview').innerHTML = '';
+    document.getElementById('messageCount').textContent = '0';
+  };
+
+  document.getElementById('closeSuccessBtn').onclick = () => document.getElementById('successModal').classList.remove('show');
+  document.getElementById('successModal').onclick = e => {
+    if (e.target === document.getElementById('successModal')) document.getElementById('successModal').classList.remove('show');
+  };
+})();
+
+function showNotFound(u) {
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('nfUsername').textContent = u;
+  document.getElementById('notFoundState').style.display = 'block';
+}
+</script>
+</body>
+</html>
