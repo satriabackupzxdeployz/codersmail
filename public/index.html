@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+  <title>Codersmail — Login</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
+  <!-- Google Sign-In SDK (client_id injected via backend meta tag) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+<div class="app-wrapper" id="appShell">
+
+  <!-- ── Main View ── -->
+  <div class="main-view" id="authView" style="padding:0;">
+
+    <!-- Logo Header -->
+    <div style="padding: 32px 24px 0;">
+      <div class="login-header-center">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="16" fill="#1a1a1a"/>
+          <path d="M16 20h32v4H16zM16 28h24v4H16zM16 36h20v4H16z" fill="white" opacity=".9"/>
+          <circle cx="50" cy="46" r="10" fill="#34c759"/>
+          <path d="M46 46l2.5 2.5L54 43" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h1>Codersmail</h1>
+        <p>Pesan Anonim · @coders.dev</p>
+      </div>
+    </div>
+
+    <!-- Auth Tabs -->
+    <div style="padding: 24px;">
+      <div class="auth-tab-container">
+        <button class="auth-tab-btn active" id="tabLogin" onclick="switchTab('login')">Masuk</button>
+        <button class="auth-tab-btn" id="tabRegister" onclick="switchTab('register')">Daftar</button>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <div id="loginForm">
+        <div style="margin-bottom:14px;">
+          <input class="input-style" id="loginUser" type="text" placeholder="Username" autocomplete="username" autocapitalize="none">
+        </div>
+        <div style="margin-bottom:20px;">
+          <input class="input-style" id="loginPass" type="password" placeholder="Password" autocomplete="current-password">
+        </div>
+        <button class="btn btn-dark" id="loginBtn" onclick="doLogin()">
+          <i class="fas fa-arrow-right"></i> Masuk
+        </button>
+        <div class="auth-divider">atau</div>
+        <!-- Google Sign-In Button (rendered by GSI SDK) -->
+        <div id="googleLoginBtnWrap" style="display:flex;justify-content:center;"></div>
+      </div>
+
+      <!-- REGISTER FORM -->
+      <div id="registerForm" class="hidden">
+        <div style="margin-bottom:14px;">
+          <input class="input-style" id="regUser" type="text" placeholder="Username (huruf, angka, _)" autocomplete="username" autocapitalize="none" maxlength="20">
+        </div>
+        <div style="margin-bottom:14px;">
+          <input class="input-style" id="regPass" type="password" placeholder="Password (min 6 karakter)" autocomplete="new-password">
+        </div>
+        <div style="margin-bottom:6px;">
+          <input class="input-style" id="regEmail" type="text" placeholder="Username" readonly style="color:#8e8e8e;" value="">
+        </div>
+        <p style="font-size:.78rem;color:#aaa;margin-bottom:18px;padding-left:4px;">
+          <i class="fas fa-at"></i> Email kamu: <span id="emailPreview" style="font-weight:600;color:#1a1a1a;">username@coders.dev</span>
+        </p>
+        <button class="btn btn-dark" id="registerBtn" onclick="doRegister()">
+          <i class="fas fa-user-plus"></i> Buat Akun
+        </button>
+        <div class="auth-divider">atau</div>
+        <div id="googleRegBtnWrap" style="display:flex;justify-content:center;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="copyright">© Codersmail · @coders.dev</div>
+</div>
+
+<!-- ── Google Username Picker Modal ── -->
+<div class="modal-overlay google-pick-modal" id="googlePickModal">
+  <div class="modal-card" style="text-align:center;">
+    <img id="googlePickAvatar" class="google-pick-avatar" src="" alt="">
+    <h3 id="googlePickName" style="margin-bottom:4px;"></h3>
+    <p style="font-size:.82rem;color:#8e8e8e;margin-bottom:20px;">Pilih username untuk akun Codersmail-mu</p>
+    <input class="input-style" id="googlePickUsername" type="text" placeholder="Username (3-20 karakter)" autocapitalize="none" maxlength="20" style="margin-bottom:8px;">
+    <p style="font-size:.78rem;color:#aaa;margin-bottom:20px;">Email kamu: <span id="googlePickEmail" style="font-weight:600;color:#1a1a1a;"></span></p>
+    <button class="btn btn-dark" id="googlePickBtn" onclick="doGoogleRegister()">
+      Buat Akun
+    </button>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+  // Redirect if already logged in
+  const _auth = getAuth();
+  if (_auth && _auth.username) window.location.href = '/dashboard';
+
+  let _googlePending = null; // holds { googleUid, name, picture }
+
+  // ── Tab switch ──────────────────────────────────────────
+  function switchTab(t) {
+    document.getElementById('loginForm').classList.toggle('hidden', t !== 'login');
+    document.getElementById('registerForm').classList.toggle('hidden', t !== 'register');
+    document.getElementById('tabLogin').classList.toggle('active', t === 'login');
+    document.getElementById('tabRegister').classList.toggle('active', t !== 'login');
+  }
+
+  // ── Email preview ────────────────────────────────────────
+  document.getElementById('regUser').addEventListener('input', function() {
+    const v = this.value.trim() || 'username';
+    document.getElementById('emailPreview').textContent = v + '@coders.dev';
+    document.getElementById('regEmail').value = v + '@coders.dev';
+  });
+  document.getElementById('googlePickUsername').addEventListener('input', function() {
+    const v = this.value.trim() || 'username';
+    document.getElementById('googlePickEmail').textContent = v + '@coders.dev';
+  });
+
+  // ── Login ────────────────────────────────────────────────
+  async function doLogin() {
+    const username = document.getElementById('loginUser').value.trim();
+    const password = document.getElementById('loginPass').value;
+    if (!username || !password) return showToast('Isi username dan password', 'error');
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span>';
+    const r = await apiCall('LOGIN', { username, password });
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-arrow-right"></i> Masuk';
+    if (r.e) return showToast(r.e, 'error');
+    setAuth({ username, email: r.email });
+    window.location.href = '/dashboard';
+  }
+
+  // ── Register ──────────────────────────────────────────────
+  async function doRegister() {
+    const username = document.getElementById('regUser').value.trim();
+    const password = document.getElementById('regPass').value;
+    if (!username || !password) return showToast('Isi semua kolom', 'error');
+    const btn = document.getElementById('registerBtn');
+    btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span>';
+    const r = await apiCall('REGISTER', { username, password, host: location.origin });
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-user-plus"></i> Buat Akun';
+    if (r.e) return showToast(r.e, 'error');
+    showToast('Akun berhasil dibuat!', 'success');
+    setAuth({ username, email: username + '@coders.dev' });
+    setTimeout(() => window.location.href = '/dashboard', 800);
+  }
+
+  // ── Google Auth callback ──────────────────────────────────
+  async function handleGoogleCredential(response) {
+    const r = await apiCall('GOOGLE_AUTH', { idToken: response.credential });
+    if (r.e) return showToast(r.e, 'error');
+    if (!r.newUser) {
+      // Returning user
+      setAuth({ username: r.username, email: r.email });
+      window.location.href = '/dashboard';
+    } else {
+      // New user — pick username
+      _googlePending = { googleUid: r.googleUid, name: r.name, picture: r.picture };
+      document.getElementById('googlePickAvatar').src = r.picture || '';
+      document.getElementById('googlePickName').textContent = r.name || '';
+      document.getElementById('googlePickEmail').textContent = 'username@coders.dev';
+      document.getElementById('googlePickModal').classList.add('show');
+    }
+  }
+
+  // ── Google Register (after picking username) ──────────────
+  async function doGoogleRegister() {
+    if (!_googlePending) return;
+    const username = document.getElementById('googlePickUsername').value.trim();
+    if (!username) return showToast('Pilih username dulu', 'error');
+    const btn = document.getElementById('googlePickBtn');
+    btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span>';
+    const r = await apiCall('GOOGLE_REGISTER', {
+      username,
+      googleUid: _googlePending.googleUid,
+      picture:   _googlePending.picture,
+      name:      _googlePending.name,
+      host:      location.origin
+    });
+    btn.disabled = false; btn.innerHTML = 'Buat Akun';
+    if (r.e) return showToast(r.e, 'error');
+    setAuth({ username, email: r.email });
+    window.location.href = '/dashboard';
+  }
+
+  // ── Init Google Sign-In ───────────────────────────────────
+  window.addEventListener('load', () => {
+    // Client ID is safe to expose in frontend (it's a public identifier)
+    // but we validate the token SERVER-SIDE. The actual secret never touches frontend.
+    const GCID = document.querySelector('meta[name="google-client-id"]')?.content;
+    if (!GCID || GCID === 'YOUR_GOOGLE_CLIENT_ID') return; // not configured yet
+
+    google.accounts.id.initialize({
+      client_id: GCID,
+      callback:  handleGoogleCredential,
+      ux_mode:   'popup'
+    });
+
+    ['googleLoginBtnWrap','googleRegBtnWrap'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) google.accounts.id.renderButton(el, {
+        theme: 'outline', size: 'large', shape: 'pill',
+        text: id.includes('Login') ? 'signin_with' : 'signup_with',
+        width: 320
+      });
+    });
+  });
+
+  // Enter key support
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    if (!document.getElementById('loginForm').classList.contains('hidden')) doLogin();
+    else doRegister();
+  });
+</script>
+
+<!-- Google Client ID meta (populated by backend /sys-meta endpoint in production)
+     For now, paste your Google Client ID here: -->
+<meta name="google-client-id" content="YOUR_GOOGLE_CLIENT_ID">
+
+</body>
+</html>
